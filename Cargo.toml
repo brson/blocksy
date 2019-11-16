@@ -1,0 +1,9 @@
+[package]
+name = "blocksy"
+version = "0.1.0"
+authors = ["Brian Anderson <andersrb@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+b_error = "0.1.0"
+static_assertions = "1.1.0"
