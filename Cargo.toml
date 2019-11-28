@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 b_error = "0.1.0"
 static_assertions = "1.1.0"
+endian-type = "0.1.2"

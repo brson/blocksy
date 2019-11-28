@@ -6,6 +6,8 @@ use b_error::BResult;
 use std::io::{Read, Write, Seek};
 use std::sync::Arc;
 use static_assertions::{assert_obj_safe, assert_eq_size};
+use endian_type::LittleEndian;
+use std::ops::Range;
 
 pub const BLOCK_SIZE: usize = 4096;
 
@@ -60,27 +62,22 @@ pub trait BlockIterator {
 assert_obj_safe!(BlockIterator);
 
 #[derive(Clone)]
-pub struct FsPath(Vec<u8>);
+pub struct FilePath(Vec<u8>);
 
-/// Using the locking policy described by SQLite:
-///
-///    https://sqlite.org/lockingv3.html
-///
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LockState {
-    Unlocked,
-    Shared,
-    Reserved,
-    Pending,
-    Exclusive,
+pub enum LockType {
+    Read, Write
 }
 
 pub trait FileSystem {
-    fn open(&self, path: &FsPath) -> BResult<Arc<dyn FileStream>>;
-    fn change_lock_state(&self, path: &FsPath, type_: LockState) -> BResult<()>;
+    fn open(&self, path: &FilePath) -> BResult<Arc<dyn FileHandle>>;
+    fn lock(&self, path: &dyn FileHandle, range: Range<u64>) -> BResult<()>;
+    fn unlock(&self, path: &dyn FileHandle, range: Range<u64>) -> BResult<()>;
 }
 
 assert_obj_safe!(FileSystem);
+
+pub trait FileHandle: FileStream + Send + Sync { }
     
 pub trait FileStream: Read + Write + Seek { }
 
@@ -88,8 +85,8 @@ assert_obj_safe!(FileStream);
 
 #[repr(packed)]
 struct HeaderBlock {
-    magic_number: [u8; 8],
-    generation: Wrapping<u64>,
+    magic_number: MagicNumber,
+    generation: Wrapping<LittleEndian<u64>>,
     lock_bytes: LockBytes,
     _padding: [u8; HEADER_PADDING_BYTES],
     header_checksum: Checksum,
@@ -102,7 +99,9 @@ const HEADER_PADDING_BYTES: usize =
     mem::size_of::<LockBytes>() -
     mem::size_of::<Checksum>();
 
-static MAGIC_NUMBER: &'static [u8; 8] = b"BLOCKSY!";
+static MAGIC_NUMBER: MagicNumber = MagicNumber(*b"BLOCKSY!");
+
+struct MagicNumber([u8; 8]);
 
 assert_eq_size!(HeaderBlock, [u8; BLOCK_SIZE]);
 
